@@ -1,0 +1,231 @@
+<button id="submit">Посчитать</button>
+<textarea id="input" style="width: 100%; height: 500px;">	
+{
+  "programs": {
+    "A": ["q00L q11L"],
+    "B": ["q21L q11R", "q01R q21L"],
+    "C": ["q1.1R q2.0L"],
+    "D": ["q21L q1.0R", "q2.1R q21L"],
+    "E": ["q11L q00R"]
+  },
+  "task5": {
+    "program": "EAE",
+    "state": ["111000", "q1", "01"]
+  }
+}
+</textarea>
+
+<pre id="output"></pre>
+
+<script>
+	var coolSlice, parseSeq, parseState, parseStep, printProgram, programs, setExit, setOffset, solveTask5, stepTuring, stringNums, stringTuring;
+
+parseStep = function(t) {
+  var result;
+  console.log('parseStep', t);
+  result = {};
+  result.nextPos = t.slice(-1);
+  result.write = t.slice(-2, -1);
+  if (t.slice(-3, -2) === '.') {
+    result.next = '0';
+    result.exit = t.slice(1, -3);
+  } else {
+    result.next = t.slice(1, -2);
+    if (result.next === '0') {
+      result.exit = '1';
+    }
+  }
+  return result;
+};
+
+parseState = function(str) {
+  var t;
+  console.log('parseState', str);
+  t = str.split(' ');
+  if (t.length !== 2) {
+    Error('dont have space in state');
+  }
+  return [parseStep(t[0]), parseStep(t[1])];
+};
+
+
+//for k,v of programs
+//console.log(v)
+//console.log(v.map(parseState))
+setOffset = function(program, new_start) {
+  program.map(function(states) {
+    return states.map(function(state) {
+      if (state.next !== '0') {
+        state.next = (parseInt(state.next) + new_start - 1).toString();
+      }
+      return state;
+    });
+  });
+  
+  //console.log(program)
+  return program;
+};
+
+setExit = function(program, currentExit, newState, newExit) {
+  program.map(function(states) {
+    return states.map(function(state) {
+      if (state.exit === currentExit) {
+        delete state.exit;
+        state.next = newState;
+        if (newExit !== null) {
+          state.exit = newExit;
+        }
+      }
+      return state;
+    });
+  });
+  return program;
+};
+
+printProgram = function(program) {
+  return program.map(function(states) {
+    return states.map(function(state) {
+      return (state.next === '0' ? 'q' + state.exit + '.' : 'q' + state.next) + state.write + state.nextPos;
+    }).join(' ');
+  }).map(function(e, k) {
+    return (1 + k) + ') ' + e;
+  }).join('\n');
+};
+
+solveTask5 = function(props) {
+  var count, currTuring, i, j, k, len, len1, next_exit, output, p, parsed, result_program, states;
+
+  let finalOutput = []
+
+  states = props.program.split('');
+  result_program = [];
+  next_exit = 1;
+  for (k = j = 0, len1 = states.length; j < len1; k = ++j) {
+    i = states[k];
+    p = programs[i];
+    parsed = p.map(parseState);
+    setOffset(parsed, next_exit);
+    len = p.length;
+    next_exit += len;
+    setExit(parsed, '1', (k + 1 === states.length ? '0' : next_exit.toString()), k + 1 === states.length ? '0' : null);
+    parsed.forEach(function(state) {
+      return result_program.push(state);
+    });
+  }
+
+  finalOutput.push(printProgram(result_program))
+
+
+  output = [];
+  count = 0;
+  currTuring = parseSeq(props.state);
+  output.push(stringTuring(currTuring));
+  while (currTuring.state !== '0' && count < 100) {
+    currTuring = stepTuring(result_program, currTuring);
+    output.push(stringTuring(currTuring));
+  }
+  if (count === 100) {
+    output = ['more than 100 iteration. probably error in input', ...output];
+  }
+  finalOutput.push(output.join('\n'));
+
+  return finalOutput.join('\n\n');
+};
+
+parseSeq = function(arr) {
+  var turing;
+  //console.log(arr)
+  if (arr.length !== 3) {
+    Error('sequence must be 3 items');
+  }
+  turing = {
+    nums: [...arr[0].split(''), ...arr[2].split('')],
+    lookat: arr[0].length,
+    state: '1'
+  };
+  return turing;
+};
+
+coolSlice = function(nums, left, right) {
+  var i, j, ref, ref1, result;
+  result = '';
+  for (i = j = ref = left, ref1 = right; j < ref1; i = j += 1) {
+    result += nums[i] || '0';
+  }
+  return result;
+};
+
+stringNums = function(nums) {
+  var indexes, mmax, mmin;
+  indexes = Object.keys(nums).map(function(e) {
+    return parseInt(e);
+  });
+  mmin = indexes.reduce(function(acc, el) {
+    return Math.min(acc, el);
+  });
+  mmax = indexes.reduce(function(acc, el) {
+    return Math.max(acc, el);
+  });
+  return coolSlice(nums, mmin, mmax + 1);
+};
+
+stringTuring = function(turing) {
+  var indexes, mmax, mmin;
+  indexes = Object.keys(turing.nums).map(function(e) {
+    return parseInt(e);
+  });
+  mmin = indexes.reduce(function(acc, el) {
+    return Math.min(acc, el);
+  });
+  mmax = indexes.reduce(function(acc, el) {
+    return Math.max(acc, el);
+  });
+  return coolSlice(turing.nums, mmin, turing.lookat) + '(q' + turing.state + ')' + coolSlice(turing.nums, turing.lookat, mmax + 1);
+};
+
+stepTuring = function(program, turing) {
+  var currAction, currState, currValue, lookat, nums, state;
+  ({state, lookat, nums} = turing);
+  if (state === '0') {
+    return Error('end state');
+  }
+  currState = program[parseInt(state) - 1];
+  currValue = nums[lookat] || '0';
+  console.log('now)', state, 'value', currValue, currState);
+  currAction = currState[currValue];
+  turing.nums[lookat] = currAction.write;
+  turing.lookat = lookat + (currAction.nextPos === 'L' ? -1 : 1);
+  turing.state = currAction.next;
+  console.log(state, currAction, currValue, currAction.nextPos, stringNums(turing.nums));
+  return turing;
+};
+
+
+
+window.addEventListener('load', () => {
+  document.getElementById('submit').addEventListener('click', () => {
+    const text = document.getElementById('input').value;
+    console.log(text)
+    const input = JSON.parse(text);
+    programs = input.programs;
+    document.getElementById('output').innerHTML =  solveTask5(input.task5);
+  })
+  
+})
+
+programs = {
+  'A': ['q00L q11L'],
+  'B': ['q21L q11R', 'q01R q21L'],
+  'C': ['q1.1R q2.0L'],
+  'D': ['q21L q1.0R', 'q2.1R q21L'],
+  'E': ['q11L q00R']
+};
+
+solveTask5({
+  program: 'EAE',
+  state: ['111000', 'q1', '01']
+});
+
+
+
+</script>
